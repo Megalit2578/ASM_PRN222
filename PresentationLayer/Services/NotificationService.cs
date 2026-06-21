@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
 using PresentationLayer.Hubs;
-using ServiceLayer.Services;
+using ServiceLayer.Services.Interfaces;
 
 namespace PresentationLayer.Services;
 

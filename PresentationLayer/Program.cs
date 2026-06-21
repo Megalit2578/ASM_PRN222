@@ -10,6 +10,10 @@ using ServiceLayer.Services;
 using ServiceLayer.Services.Embeddings;
 using ServiceLayer.Settings;
 using ServiceLayer.Mapping;
+using DataAccessLayer.Repositories.Implementations;
+using DataAccessLayer.Repositories.Interfaces;
+using ServiceLayer.Services.Implementations;
+using ServiceLayer.Services.Interfaces;
 
 namespace PresentationLayer;
 

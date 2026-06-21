@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ServiceLayer.Dtos;
-using ServiceLayer.Services;
+using ServiceLayer.Services.Interfaces;
 
 namespace PresentationLayer.Pages.Dashboard;
 

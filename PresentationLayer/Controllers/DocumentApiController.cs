@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using ServiceLayer.Services;
+using ServiceLayer.Services.Interfaces;
 using System.Security.Claims;
 
 namespace PresentationLayer.Controllers;

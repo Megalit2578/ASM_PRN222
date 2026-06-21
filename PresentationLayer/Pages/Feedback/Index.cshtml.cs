@@ -2,7 +2,7 @@ using DataAccessLayer.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using ServiceLayer.Services;
+using ServiceLayer.Services.Interfaces;
 using System.Security.Claims;
 
 namespace PresentationLayer.Pages.Feedback;

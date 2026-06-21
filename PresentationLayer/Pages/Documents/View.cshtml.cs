@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using ServiceLayer.Services;
 using DataAccessLayer.Entities;
+using ServiceLayer.Services.Interfaces;
 
 namespace PresentationLayer.Pages.Documents;
 

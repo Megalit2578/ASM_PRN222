@@ -1,7 +1,7 @@
 using DataAccessLayer.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
-using ServiceLayer.Services;
+using ServiceLayer.Services.Interfaces;
 using System.Security.Claims;
 
 namespace PresentationLayer.Hubs;

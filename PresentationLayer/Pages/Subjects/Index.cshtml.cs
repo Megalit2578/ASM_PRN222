@@ -1,7 +1,7 @@
 using DataAccessLayer.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using ServiceLayer.Services;
+using ServiceLayer.Services.Interfaces;
 
 namespace PresentationLayer.Pages.Subjects;
 

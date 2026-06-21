@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using ServiceLayer.Services;
+using ServiceLayer.Services.Implementations;
 
 namespace PresentationLayer.Pages.Settings;
 
