@@ -92,7 +92,9 @@ public class DocumentChunkRepository : IDocumentChunkRepository
         var keywords = query
             .Split(new[] { ' ', ',', '.', '?', '!', ':', ';' }, StringSplitOptions.RemoveEmptyEntries)
             .Select(w => w.Trim())
-            .Where(w => w.Length >= 3 && !StopWords.Contains(w))
+            // Bỏ dấu trước khi so với stopwords (stopwords là dạng không dấu),
+            // nếu không các từ có dấu như "Tóm", "tắt", "tài", "liệu", "môn" sẽ lọt qua.
+            .Where(w => w.Length >= 3 && !StopWords.Contains(RemoveDiacritics(w)))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -110,11 +112,34 @@ public class DocumentChunkRepository : IDocumentChunkRepository
 
         if (candidates.Count > 0)
         {
+            int totalKw = keywords.Count;
             return candidates
                 .GroupBy(c => c.Id)
-                .OrderByDescending(g => g.Count())
+                .Select(g =>
+                {
+                    var c = g.First();
+                    var content = c.Content ?? string.Empty;
+                    var name = c.DocumentName ?? string.Empty;
+
+                    int matched = 0;      // số từ khóa (distinct) khớp với chunk
+                    int occurrences = 0;  // tổng số lần từ khóa xuất hiện trong nội dung
+                    foreach (var kw in keywords)
+                    {
+                        int cnt = CountOccurrences(content, kw);
+                        occurrences += cnt;
+                        if (cnt > 0 || name.Contains(kw, StringComparison.OrdinalIgnoreCase))
+                            matched++;
+                    }
+
+                    // Độ phủ từ khóa là tín hiệu chính (khớp đủ từ khóa -> điểm cao),
+                    // cộng thêm thưởng theo tần suất xuất hiện (bão hòa dần).
+                    float coverage = totalKw == 0 ? 0f : (float)matched / totalKw;
+                    float tfBonus = 1f - (float)Math.Exp(-occurrences / 3.0);
+                    float score = coverage * (0.85f + 0.15f * tfBonus);
+                    return (Chunk: c, Score: Math.Clamp(score, 0.1f, 1.0f));
+                })
+                .OrderByDescending(x => x.Score)
                 .Take(limit)
-                .Select(g => (g.First(), 0.5f + (g.Count() * 0.1f))) // Phỏng đoán điểm keyword
                 .ToList();
         }
 
@@ -138,6 +163,36 @@ public class DocumentChunkRepository : IDocumentChunkRepository
             @"(?:chuong|chương|chapter|chap|bai|bài|buoi|buổi)\s*0*(\d{1,2})",
             RegexOptions.IgnoreCase);
         return m.Success && int.TryParse(m.Groups[1].Value, out var n) ? n : null;
+    }
+
+    // Bỏ dấu tiếng Việt: "Tóm tắt liệu" -> "Tom tat lieu", "đường" -> "duong".
+    private static string RemoveDiacritics(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return text;
+        var normalized = text.Normalize(System.Text.NormalizationForm.FormD);
+        var sb = new System.Text.StringBuilder(normalized.Length);
+        foreach (var ch in normalized)
+        {
+            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(ch)
+                != System.Globalization.UnicodeCategory.NonSpacingMark)
+                sb.Append(ch);
+        }
+        return sb.ToString()
+            .Normalize(System.Text.NormalizationForm.FormC)
+            .Replace('đ', 'd').Replace('Đ', 'D');
+    }
+
+    // Đếm số lần 'term' xuất hiện trong 'text' (không phân biệt hoa thường).
+    private static int CountOccurrences(string text, string term)
+    {
+        if (string.IsNullOrEmpty(text) || string.IsNullOrEmpty(term)) return 0;
+        int count = 0, idx = 0;
+        while ((idx = text.IndexOf(term, idx, StringComparison.OrdinalIgnoreCase)) >= 0)
+        {
+            count++;
+            idx += term.Length;
+        }
+        return count;
     }
 
     public async Task<List<DocumentChunk>> GetByDocumentAsync(string documentId)
