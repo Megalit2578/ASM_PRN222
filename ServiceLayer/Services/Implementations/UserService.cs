@@ -103,6 +103,13 @@ public class UserService : IUserService
             // Granting requires choosing exactly one subject the lecturer may upload to.
             if (string.IsNullOrWhiteSpace(subjectId))
                 return (false, "Vui lòng chọn bộ môn (môn học) khi cấp quyền upload");
+
+            // Mỗi môn học chỉ được giao cho ĐÚNG MỘT giảng viên — chặn nếu môn đã giao cho người khác.
+            var all = await _repo.GetAllAsync();
+            var holder = all.FirstOrDefault(u => u.Id != id && u.AssignedSubjectId == subjectId);
+            if (holder != null)
+                return (false, $"Môn học này đã được giao cho giảng viên \"{holder.FullName}\". Mỗi môn chỉ được giao cho duy nhất một giảng viên.");
+
             user.CanUploadDocuments = true;
             user.AssignedSubjectId = subjectId;
         }

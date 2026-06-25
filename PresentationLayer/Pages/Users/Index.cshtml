@@ -150,7 +150,11 @@
                                             <option value="">– Gán môn –</option>
                                             @foreach (var s in Model.Subjects)
                                             {
-                                                <option value="@s.Id" selected="@(s.Id == u.AssignedSubjectId)">@s.Name</option>
+                                                var holder = Model.Users.FirstOrDefault(x => x.AssignedSubjectId == s.Id);
+                                                var takenByOther = holder != null && holder.Id != u.Id;
+                                                <option value="@s.Id" selected="@(s.Id == u.AssignedSubjectId)" disabled="@takenByOther">
+                                                    @s.Name@(takenByOther ? $" (đã giao: {holder!.FullName})" : "")
+                                                </option>
                                             }
                                         </select>
                                         <button type="submit" class="btn btn-secondary btn-sm" title="Gán môn học">📌</button>
