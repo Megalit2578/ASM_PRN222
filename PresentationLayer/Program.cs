@@ -124,8 +124,11 @@ public class Program
         {
             options.AddPolicy("LecturerOrAdmin", p => p.RequireRole("Lecturer", "Admin"));
             options.AddPolicy("AdminOnly", p => p.RequireRole("Admin"));
+            // Chỉ giảng viên ĐƯỢC ADMIN GIAO MÔN (có AssignedSubjectId) mới được upload tài liệu.
+            // Admin KHÔNG được upload — mỗi môn chỉ có đúng một người upload là giảng viên phụ trách.
             options.AddPolicy("CanUploadDocuments", p => p.RequireAssertion(ctx =>
-                ctx.User.IsInRole("Admin") || ctx.User.IsInRole("Lecturer") || ctx.User.HasClaim("CanUpload", "true")));
+                !ctx.User.IsInRole("Admin") &&
+                !string.IsNullOrEmpty(ctx.User.FindFirst("AssignedSubjectId")?.Value)));
         });
 
         builder.Services.AddHttpContextAccessor();

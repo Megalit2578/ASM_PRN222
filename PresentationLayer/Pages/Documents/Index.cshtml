@@ -5,7 +5,11 @@
     ViewData["Title"] = "Tài liệu";
     ViewData["TopbarTitle"] = "📄 Quản lý tài liệu";
     var role = User.FindFirst(ClaimTypes.Role)?.Value ?? "";
-    var isCanUpload = role == "Admin" || role == "Lecturer" || User.HasClaim("CanUpload", "true");
+    var assignedSubjectId = User.FindFirst("AssignedSubjectId")?.Value;
+    // Chỉ giảng viên được admin giao môn (có AssignedSubjectId) mới được upload — admin KHÔNG.
+    var canUpload = role != "Admin" && !string.IsNullOrEmpty(assignedSubjectId);
+    // Admin KHÔNG được quản lý tài liệu (xoá/duyệt) — chỉ giám sát. Quản lý dành cho giảng viên.
+    var canManage = role != "Admin" && (role == "Lecturer" || User.HasClaim("CanUpload", "true"));
 }
 
 <div class="page-header flex items-center justify-between">
@@ -17,7 +21,7 @@
         <a href="/Documents/Compare" class="btn btn-secondary" style="border-color:var(--accent-purple);color:var(--accent-purple)">
             🔍 So sánh AI
         </a>
-        @if (isCanUpload)
+        @if (canUpload)
         {
             <a href="/Documents/Upload" class="btn btn-primary">⬆️ Upload mới</a>
         }
@@ -47,90 +51,106 @@
     </form>
 </div>
 
-@if (Model.Documents.Count == 0)
-{
-    <div class="card">
-        <div class="empty-state">
-            <div class="empty-state-icon">📂</div>
-            <div class="empty-state-title">Chưa có tài liệu nào</div>
-            <p class="empty-state-text">Upload tài liệu đầu tiên để AI có thể học và trả lời câu hỏi.</p>
-            @if (isCanUpload)
-            {
-                <a href="/Documents/Upload" class="btn btn-primary mt-4">⬆️ Upload tài liệu</a>
-            }
-        </div>
+@* Token để JS dựng form xoá cho các dòng tạo real-time *@
+<div id="docsAntiforgery" style="display:none">@Html.AntiForgeryToken()</div>
+
+<!-- Empty state (ẩn khi đã có tài liệu) -->
+<div id="docsEmpty" class="card" style="@(Model.Documents.Count == 0 ? "" : "display:none")">
+    <div class="empty-state">
+        <div class="empty-state-icon">📂</div>
+        <div class="empty-state-title">Chưa có tài liệu nào</div>
+        <p class="empty-state-text">Upload tài liệu đầu tiên để AI có thể học và trả lời câu hỏi.</p>
+        @if (canUpload)
+        {
+            <a href="/Documents/Upload" class="btn btn-primary mt-4">⬆️ Upload tài liệu</a>
+        }
     </div>
-}
-else
-{
-    <div class="card" style="padding:0">
-        <div class="table-wrapper">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Tài liệu</th>
-                        <th>Môn học</th>
-                        <th>Trạng thái</th>
-                        <th>Kích thước</th>
-                        <th>Ngày tải</th>
-                        <th>Thao tác</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var doc in Model.Documents)
-                    {
-                        var icon = doc.FileName.EndsWith(".pdf") ? "📕" :
-                                   doc.FileName.EndsWith(".docx") ? "📘" :
-                                   doc.FileName.EndsWith(".pptx") ? "📙" : "📄";
-                        var statusClass = doc.Status == "Indexed" ? "badge-green" :
-                                          (doc.Status == "Processing" || doc.Status == "Reviewing" || doc.Status == "Indexing") ? "badge-orange" :
-                                          (doc.Status == "Failed" || doc.Status == "Rejected") ? "badge-red" : "badge-gray";
-                        <tr data-doc-id="@doc.Id">
-                            <td>
-                                <div class="flex items-center gap-2">
-                                    <span style="font-size:1.3rem">@icon</span>
-                                    <div>
-                                        <div style="font-weight:600;color:var(--text-primary)">@doc.Title</div>
-                                        <div class="text-sm text-muted">@doc.FileName</div>
-                                    </div>
+</div>
+
+<!-- Bảng tài liệu (luôn render; ẩn khi rỗng) -->
+<div id="docsTableCard" class="card" style="padding:0;@(Model.Documents.Count == 0 ? "display:none" : "")">
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Tài liệu</th>
+                    <th>Môn học</th>
+                    <th>Trạng thái</th>
+                    <th>Kích thước</th>
+                    <th>Ngày tải</th>
+                    <th>Thao tác</th>
+                </tr>
+            </thead>
+            <tbody id="docsTbody">
+                @foreach (var doc in Model.Documents)
+                {
+                    var icon = doc.FileName.EndsWith(".pdf") ? "📕" :
+                               doc.FileName.EndsWith(".docx") ? "📘" :
+                               doc.FileName.EndsWith(".pptx") ? "📙" : "📄";
+                    var statusClass = doc.Status == "Indexed" ? "badge-green" :
+                                      (doc.Status == "Processing" || doc.Status == "Reviewing" || doc.Status == "Indexing") ? "badge-orange" :
+                                      (doc.Status == "Failed" || doc.Status == "Rejected") ? "badge-red" : "badge-gray";
+                    <tr data-doc-id="@doc.Id">
+                        <td>
+                            <div class="flex items-center gap-2">
+                                <span style="font-size:1.3rem">@icon</span>
+                                <div>
+                                    <div style="font-weight:600;color:var(--text-primary)">@doc.Title</div>
+                                    <div class="text-sm text-muted">@doc.FileName</div>
                                 </div>
-                            </td>
-                            <td>
-                                @{
-                                    var subj = Model.Subjects.FirstOrDefault(s => s.Id == doc.SubjectId);
-                                    var displaySubj = subj != null ? $"{subj.Code} - {subj.Name}" : (doc.SubjectId ?? "–");
+                            </div>
+                        </td>
+                        <td>
+                            @{
+                                var subj = Model.Subjects.FirstOrDefault(s => s.Id == doc.SubjectId);
+                                var displaySubj = subj != null ? $"{subj.Code} - {subj.Name}" : (doc.SubjectId ?? "–");
+                            }
+                            <span class="badge badge-blue" title="@displaySubj">@(subj?.Code ?? doc.SubjectId ?? "–")</span>
+                        </td>
+                        <td><span class="badge @statusClass doc-status-badge">@doc.Status</span></td>
+                        <td class="text-sm text-muted">@(doc.FileSize / 1024) KB</td>
+                        <td class="text-sm text-muted">@doc.UploadedAt.ToString("dd/MM/yyyy")</td>
+                        <td>
+                            <div class="flex gap-2">
+                                <a href="/Documents/View?id=@doc.Id" class="btn btn-secondary btn-sm">👁️</a>
+                                @if (canManage)
+                                {
+                                    <form method="post" asp-page-handler="Delete" asp-route-id="@doc.Id"
+                                          onsubmit="return confirm('Xoá tài liệu này?')">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-danger btn-sm">🗑️</button>
+                                    </form>
                                 }
-                                <span class="badge badge-blue" title="@displaySubj">@(subj?.Code ?? doc.SubjectId ?? "–")</span>
-                            </td>
-                            <td><span class="badge @statusClass doc-status-badge">@doc.Status</span></td>
-                            <td class="text-sm text-muted">@(doc.FileSize / 1024) KB</td>
-                            <td class="text-sm text-muted">@doc.UploadedAt.ToString("dd/MM/yyyy")</td>
-                            <td>
-                                <div class="flex gap-2">
-                                    <a href="/Documents/View?id=@doc.Id" class="btn btn-secondary btn-sm">👁️</a>
-                                    @if (isCanUpload)
-                                    {
-                                        <form method="post" asp-page-handler="Delete" asp-route-id="@doc.Id"
-                                              onsubmit="return confirm('Xoá tài liệu này?')">
-                                            @Html.AntiForgeryToken()
-                                            <button type="submit" class="btn btn-danger btn-sm">🗑️</button>
-                                        </form>
-                                    }
-                                </div>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
     </div>
-    <p class="text-sm text-muted mt-4">Tổng: @Model.Documents.Count tài liệu</p>
-}
+</div>
+<p id="docsTotal" class="text-sm text-muted mt-4" style="@(Model.Documents.Count == 0 ? "display:none" : "")">Tổng: <span id="docsCount">@Model.Documents.Count</span> tài liệu</p>
 
 @section Scripts {
 <script>
 (function () {
-    // Cập nhật badge trạng thái tài liệu theo thời gian thực (không cần reload).
+    const CAN_MANAGE     = @(canManage ? "true" : "false");
+    const FILTER_SUBJECT = @Json.Serialize(Model.SubjectId ?? "");
+    const FILTER_QUERY   = @Json.Serialize(Model.Query ?? "");
+    const SUBJECTS       = @Json.Serialize(Model.Subjects.ToDictionary(s => s.Id, s => new { code = s.Code, name = s.Name }));
+
+    const tbody    = document.getElementById('docsTbody');
+    const emptyEl  = document.getElementById('docsEmpty');
+    const tableEl  = document.getElementById('docsTableCard');
+    const totalEl  = document.getElementById('docsTotal');
+    const countEl  = document.getElementById('docsCount');
+
+    function esc(s) {
+        return String(s ?? '')
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
     function statusClass(s) {
         if (s === 'Indexed') return 'badge-green';
         if (s === 'Processing' || s === 'Reviewing' || s === 'Indexing') return 'badge-orange';
@@ -138,22 +158,114 @@ else
         return 'badge-gray';
     }
 
-    function applyStatus(documentId, status) {
-        const row = document.querySelector(`tr[data-doc-id="${documentId}"]`);
-        if (!row) return; // tài liệu không nằm trong bảng hiện tại (đã lọc) → bỏ qua
-        const badge = row.querySelector('.doc-status-badge');
-        if (!badge) return;
-        badge.textContent = status;
-        badge.className = 'badge ' + statusClass(status) + ' doc-status-badge';
-        // Nhấp nháy nhẹ để người dùng thấy dòng vừa đổi
+    function iconFor(name) {
+        name = String(name || '').toLowerCase();
+        if (name.endsWith('.pdf'))  return '📕';
+        if (name.endsWith('.docx')) return '📘';
+        if (name.endsWith('.pptx')) return '📙';
+        return '📄';
+    }
+
+    function fmtDate(iso) {
+        const dt = iso ? new Date(iso) : new Date();
+        const p = n => String(n).padStart(2, '0');
+        return p(dt.getDate()) + '/' + p(dt.getMonth() + 1) + '/' + dt.getFullYear();
+    }
+
+    function antiforgeryToken() {
+        const el = document.querySelector('#docsAntiforgery input[name="__RequestVerificationToken"]');
+        return el ? el.value : '';
+    }
+
+    function flash(row) {
         row.style.transition = 'background 0.4s ease';
         row.style.background = 'rgba(124,58,237,0.15)';
         setTimeout(() => { row.style.background = ''; }, 1400);
     }
 
+    function syncEmpty() {
+        const has = !!tbody.querySelector('tr[data-doc-id]');
+        emptyEl.style.display = has ? 'none' : '';
+        tableEl.style.display = has ? '' : 'none';
+        totalEl.style.display = has ? '' : 'none';
+        if (countEl) countEl.textContent = tbody.querySelectorAll('tr[data-doc-id]').length;
+    }
+
+    // Khớp filter hiện tại để chỉ thêm tài liệu phù hợp với màn hình đang xem.
+    function matchesFilter(d) {
+        if (FILTER_SUBJECT && d.subjectId !== FILTER_SUBJECT) return false;
+        if (FILTER_QUERY) {
+            const q = FILTER_QUERY.toLowerCase();
+            if (!((d.title || '').toLowerCase().includes(q) || (d.fileName || '').toLowerCase().includes(q))) return false;
+        }
+        return true;
+    }
+
+    function buildRow(d) {
+        const subj      = SUBJECTS[d.subjectId];
+        const subjCode  = subj ? subj.code : (d.subjectId || '–');
+        const subjTitle = subj ? (subj.code + ' - ' + subj.name) : (d.subjectId || '–');
+        const sizeKb    = Math.floor((d.fileSize || 0) / 1024);
+
+        let actions = '<a href="/Documents/View?id=' + encodeURIComponent(d.id) + '" class="btn btn-secondary btn-sm">👁️</a>';
+        if (CAN_MANAGE) {
+            actions +=
+                '<form method="post" action="/Documents?handler=Delete&id=' + encodeURIComponent(d.id) + '" ' +
+                      'onsubmit="return confirm(\'Xoá tài liệu này?\')" style="display:inline">' +
+                    '<input type="hidden" name="__RequestVerificationToken" value="' + esc(antiforgeryToken()) + '">' +
+                    '<button type="submit" class="btn btn-danger btn-sm">🗑️</button>' +
+                '</form>';
+        }
+
+        const tr = document.createElement('tr');
+        tr.dataset.docId = d.id;
+        tr.innerHTML =
+            '<td><div class="flex items-center gap-2">' +
+                '<span style="font-size:1.3rem">' + iconFor(d.fileName) + '</span>' +
+                '<div>' +
+                    '<div style="font-weight:600;color:var(--text-primary)">' + esc(d.title) + '</div>' +
+                    '<div class="text-sm text-muted">' + esc(d.fileName) + '</div>' +
+                '</div></div></td>' +
+            '<td><span class="badge badge-blue" title="' + esc(subjTitle) + '">' + esc(subjCode) + '</span></td>' +
+            '<td><span class="badge ' + statusClass(d.status) + ' doc-status-badge">' + esc(d.status) + '</span></td>' +
+            '<td class="text-sm text-muted">' + sizeKb + ' KB</td>' +
+            '<td class="text-sm text-muted">' + fmtDate(d.uploadedAt) + '</td>' +
+            '<td><div class="flex gap-2">' + actions + '</div></td>';
+        return tr;
+    }
+
+    function applyStatus(documentId, status) {
+        const row = tbody.querySelector(`tr[data-doc-id="${documentId}"]`);
+        if (!row) return; // tài liệu không nằm trong bảng hiện tại (đã lọc) → bỏ qua
+        const badge = row.querySelector('.doc-status-badge');
+        if (!badge) return;
+        badge.textContent = status;
+        badge.className = 'badge ' + statusClass(status) + ' doc-status-badge';
+        flash(row);
+    }
+
+    function onDocChange(p) {
+        if (!p) return;
+        if (p.action === 'deleted') {
+            const row = tbody.querySelector(`tr[data-doc-id="${p.documentId}"]`);
+            if (row) { row.remove(); syncEmpty(); }
+            return;
+        }
+        if (p.action === 'created' && p.document) {
+            const d = p.document;
+            if (tbody.querySelector(`tr[data-doc-id="${d.id}"]`)) return; // đã có → bỏ qua (idempotent)
+            if (!matchesFilter(d)) return;
+            const tr = buildRow(d);
+            tbody.prepend(tr);
+            syncEmpty();
+            flash(tr);
+        }
+    }
+
     function subscribe() {
         if (window.appNotifHub) {
             window.appNotifHub.on('DocumentStatusChanged', d => applyStatus(d.documentId, d.status));
+            window.appNotifHub.on('DocumentChanged', onDocChange);
         } else {
             // _Layout chưa kịp tạo connection → thử lại sau giây lát
             setTimeout(subscribe, 300);

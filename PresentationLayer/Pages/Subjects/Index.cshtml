@@ -30,7 +30,7 @@
 </div>
 
 <!-- Grid môn học (luôn render; rỗng thì không chiếm chỗ) -->
-<div id="subjectsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">
+<div id="subjectsGrid">
     @foreach (var s in Model.Subjects)
     {
         <div class="card subject-card" style="cursor:pointer;position:relative" data-subject-id="@s.Id"

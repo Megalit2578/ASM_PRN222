@@ -50,6 +50,29 @@ public class NotificationService : INotificationService
             .SendAsync("DocumentStatusChanged", new { documentId, status });
     }
 
+    public async Task DocumentChangedAsync(string action, ServiceLayer.DTOs.DocumentDto? document, string? documentId = null)
+    {
+        // Phát tới mọi client — trang Tài liệu tự thêm/xoá dòng tương ứng (idempotent + lọc theo filter).
+        object payload = action == "deleted"
+            ? new { action, documentId = documentId ?? document?.Id }
+            : new
+            {
+                action,
+                document = document == null ? null : (object)new
+                {
+                    id = document.Id,
+                    title = document.Title,
+                    fileName = document.FileName,
+                    subjectId = document.SubjectId,
+                    status = document.Status,
+                    fileSize = document.FileSize,
+                    uploadedAt = document.UploadedAt
+                }
+            };
+
+        await _hub.Clients.All.SendAsync("DocumentChanged", payload);
+    }
+
     public async Task UserChangedAsync(string action, string userId, string? value = null)
     {
         // Phát tới mọi client — trang Quản lý người dùng tự lọc theo userId có trên bảng.

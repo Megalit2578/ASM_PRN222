@@ -73,6 +73,9 @@ public class DocumentService : IDocumentService
         };
         await _docRepo.CreateAsync(doc);
 
+        // 🔴 Real-time: báo cho mọi client đang mở trang Tài liệu thêm dòng mới ngay lập tức.
+        await _notifier.DocumentChangedAsync("created", _mapper.Map<DTOs.DocumentDto>(doc));
+
         ms.Position = 0;
         await _fileStore.SaveAsync(doc.Id, fileName, ms);
 
@@ -229,6 +232,9 @@ public class DocumentService : IDocumentService
         await _chunkRepo.DeleteByDocumentAsync(documentId);
         await _docRepo.DeleteAsync(documentId);
         if (doc != null) _fileStore.Delete(doc.Id, doc.FileName);
+
+        // 🔴 Real-time: báo cho mọi client đang mở trang Tài liệu xoá dòng tương ứng.
+        await _notifier.DocumentChangedAsync("deleted", null, documentId);
     }
 
     public async Task<bool> ApproveAsync(string documentId)

@@ -36,7 +36,8 @@ public class IndexModel : PageModel
     public async Task<IActionResult> OnPostDeleteAsync(string id)
     {
         var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
-        var canManage = role == "Admin" || role == "Lecturer" || User.HasClaim("CanUpload", "true");
+        // Admin KHÔNG được quản lý tài liệu (kể cả xoá) — chỉ giảng viên.
+        var canManage = role != "Admin" && (role == "Lecturer" || User.HasClaim("CanUpload", "true"));
         if (!canManage)
         {
             TempData["Error"] = "Bạn không có quyền thực hiện hành động này.";

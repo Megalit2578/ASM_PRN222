@@ -33,44 +33,46 @@ public class UploadModel : PageModel
     {
         ViewData["Title"] = "Upload tài liệu";
         ViewData["TopbarTitle"] = "⬆️ Upload tài liệu";
-        Subjects = await _subjectService.GetAllAsync();
 
-        var role = User.FindFirst(ClaimTypes.Role)?.Value;
         var assignedSubjectId = User.FindFirst("AssignedSubjectId")?.Value;
 
-        if (role != "Admin")
+        // Người upload chỉ được thao tác đúng môn được admin giao (admin không vào được trang này).
+        if (!string.IsNullOrEmpty(assignedSubjectId))
         {
-            if (!string.IsNullOrEmpty(assignedSubjectId))
-            {
-                Subjects = Subjects.Where(s => s.Id == assignedSubjectId).ToList();
-                SubjectId = assignedSubjectId;
-            }
-            else
-            {
-                Subjects.Clear(); // Không có môn được phân công -> Không được upload
-            }
+            Subjects = (await _subjectService.GetAllAsync())
+                .Where(s => s.Id == assignedSubjectId)
+                .ToList();
+            SubjectId = assignedSubjectId;
+        }
+        else
+        {
+            Subjects = []; // Không có môn được phân công -> không được upload
         }
     }
 
     public async Task<IActionResult> OnPostAsync()
     {
         ViewData["Title"] = "Upload tài liệu";
-        Subjects = await _subjectService.GetAllAsync();
 
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
         var assignedSubjectId = User.FindFirst("AssignedSubjectId")?.Value;
 
-        if (role != "Admin")
+        // Admin không được upload; chỉ giảng viên được giao môn mới upload (và đúng môn đó).
+        if (role == "Admin")
         {
-            if (!string.IsNullOrEmpty(assignedSubjectId))
-            {
-                Subjects = Subjects.Where(s => s.Id == assignedSubjectId).ToList();
-            }
-            else
-            {
-                Subjects.Clear();
-            }
+            return Forbid();
         }
+
+        if (string.IsNullOrEmpty(assignedSubjectId))
+        {
+            Subjects = [];
+            ModelState.AddModelError("", "Bạn chưa được phân công môn học nào nên không thể upload.");
+            return Page();
+        }
+
+        Subjects = (await _subjectService.GetAllAsync())
+            .Where(s => s.Id == assignedSubjectId)
+            .ToList();
 
         if (UploadFile == null || UploadFile.Length == 0)
         {
@@ -78,27 +80,10 @@ public class UploadModel : PageModel
             return Page();
         }
 
-        if (string.IsNullOrWhiteSpace(SubjectId))
-        {
-            ModelState.AddModelError("SubjectId", "Vui lòng chọn môn học.");
-            return Page();
-        }
+        // Luôn ép về môn được giao — chặn mọi cố gắng upload cho môn khác.
+        SubjectId = assignedSubjectId;
 
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
-
-        if (role != "Admin")
-        {
-            if (string.IsNullOrEmpty(assignedSubjectId))
-            {
-                ModelState.AddModelError("", "Bạn chưa được phân công môn học nào nên không thể upload.");
-                return Page();
-            }
-            if (SubjectId != assignedSubjectId)
-            {
-                ModelState.AddModelError("SubjectId", "Bạn chỉ có quyền upload cho môn học được phân công.");
-                return Page();
-            }
-        }
 
         try
         {

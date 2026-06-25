@@ -35,6 +35,7 @@ public class ViewModel : PageModel
     public async Task<IActionResult> OnPostApproveAsync(string id)
     {
         if (string.IsNullOrEmpty(id)) return NotFound();
+        if (User.IsInRole("Admin")) return Forbid(); // Admin chỉ giám sát, không được quản lý tài liệu
         await _documentService.ApproveAsync(id);
         return RedirectToPage(new { id });
     }
@@ -42,6 +43,7 @@ public class ViewModel : PageModel
     public async Task<IActionResult> OnPostRejectAsync(string id)
     {
         if (string.IsNullOrEmpty(id)) return NotFound();
+        if (User.IsInRole("Admin")) return Forbid(); // Admin chỉ giám sát, không được quản lý tài liệu
         await _documentService.RejectAsync(id);
         return RedirectToPage(new { id });
     }

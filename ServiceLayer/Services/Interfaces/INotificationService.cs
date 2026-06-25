@@ -22,6 +22,13 @@ public interface INotificationService
     Task DocumentStatusChangedAsync(string documentId, string status);
 
     /// <summary>
+    /// Phát sự kiện realtime khi một tài liệu được THÊM MỚI hoặc XOÁ,
+    /// để trang Tài liệu tự thêm/xoá dòng mà không cần reload.
+    /// action: "created" (kèm <paramref name="document"/>) | "deleted" (kèm <paramref name="documentId"/>).
+    /// </summary>
+    Task DocumentChangedAsync(string action, ServiceLayer.DTOs.DocumentDto? document, string? documentId = null);
+
+    /// <summary>
     /// Phát sự kiện realtime báo một tài khoản vừa đổi trạng thái.
     /// action: "verified" (vừa kích hoạt email) | "role" (đổi vai trò, value = vai trò mới) | "deleted".
     /// Trang Quản lý người dùng lắng nghe để cập nhật badge/danh sách mà không cần reload.

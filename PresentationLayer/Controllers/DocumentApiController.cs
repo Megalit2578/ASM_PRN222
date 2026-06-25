@@ -67,9 +67,9 @@ public class DocumentApiController : ControllerBase
         });
     }
 
-    /// <summary>Phê duyệt tài liệu đang ở trạng thái Reviewing → bắt đầu Chunk & Index.</summary>
+    /// <summary>Phê duyệt tài liệu đang ở trạng thái Reviewing → bắt đầu Chunk & Index. (Giảng viên — admin chỉ giám sát.)</summary>
     [HttpPost("{id}/approve")]
-    [Authorize(Policy = "LecturerOrAdmin")]
+    [Authorize(Roles = "Lecturer")]
     [ProducesResponseType(typeof(object), 200)]
     [ProducesResponseType(400)]
     [ProducesResponseType(404)]
@@ -84,9 +84,9 @@ public class DocumentApiController : ControllerBase
         return Ok(new { message = "Tài liệu đã được duyệt và đang được index." });
     }
 
-    /// <summary>Từ chối tài liệu đang ở trạng thái Reviewing.</summary>
+    /// <summary>Từ chối tài liệu đang ở trạng thái Reviewing. (Giảng viên — admin chỉ giám sát.)</summary>
     [HttpPost("{id}/reject")]
-    [Authorize(Policy = "LecturerOrAdmin")]
+    [Authorize(Roles = "Lecturer")]
     [ProducesResponseType(typeof(object), 200)]
     [ProducesResponseType(400)]
     public async Task<IActionResult> Reject(string id)
@@ -100,9 +100,9 @@ public class DocumentApiController : ControllerBase
         return Ok(new { message = "Tài liệu đã bị từ chối." });
     }
 
-    /// <summary>Xóa tài liệu (Admin only).</summary>
+    /// <summary>Xóa tài liệu. (Giảng viên — admin chỉ giám sát, không được quản lý tài liệu.)</summary>
     [HttpDelete("{id}")]
-    [Authorize(Policy = "AdminOnly")]
+    [Authorize(Roles = "Lecturer")]
     [ProducesResponseType(204)]
     [ProducesResponseType(404)]
     public async Task<IActionResult> Delete(string id)
